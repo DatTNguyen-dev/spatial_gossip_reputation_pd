@@ -1,4 +1,4 @@
-# Spatial Gossip PD
+# Spatial Gossip and Reputation Prisoner's Dilemma
 
 LLM agents play iterated Prisoner's Dilemma on a 2D grid, with reputation information spreading through space as decaying, distortable gossip. Submitted to **CSoNet 2026**.
 
@@ -78,15 +78,7 @@ ollama serve   # in a separate terminal
 
 ## Usage
 
-### 1. Smoke test (run this first)
-
-```bash
-python smoke_test.py
-```
-
-Runs a patched 2-round × 5-match version of the full pipeline (~3–8 minutes) to verify Ollama connectivity, output parsing, and the simulation loop before committing to a full run.
-
-### 2. Run experiments — one configuration at a time
+### 1. Run experiments — one configuration at a time
 
 Each `(model, mode)` pair is run as an independent process invocation, so that any interruption only affects the configuration currently running.
 
@@ -107,7 +99,7 @@ python main.py plot       # generate all figures from saved results
 | 5 | llama3.1:8b | gossip |
 | 6 | llama3.1:8b | reputation |
 
-### 3. Resuming an interrupted run
+### 2. Resuming an interrupted run
 
 The pipeline is checkpointed at two levels:
 
@@ -116,7 +108,7 @@ The pipeline is checkpointed at two levels:
 
 Both recovery mechanisms are automatic — re-running the same `python main.py N` command is sufficient.
 
-### 4. Running on Google Colab
+### 3. Running on Google Colab
 
 For users without a sufficiently capable local GPU, `spatial_gossip_colab.py` contains a cell-by-cell script that installs Ollama, mounts Google Drive for persistent model/checkpoint storage, and runs the same `main.py` CLI. See inline comments for setup.
 
@@ -145,13 +137,3 @@ plots/
 ├── gossip_accuracy.png
 └── spatial_heatmaps.png
 ```
-
-## Limitations
-
-- **Distortion model**: gossip content distortion is a simple Binary Symmetric Channel (one action flipped) rather than a richer corruption model.
-- **Pairing**: match pairing is independent of grid position — only gossip propagation is spatially constrained.
-- **Reception/belief conflation**: agents have no way to distinguish an accurate report from a distorted one; both are recorded identically in memory.
-
-## Citation
-
-If you use this code, please cite the corresponding CSoNet 2026 submission (details to be added upon acceptance).
