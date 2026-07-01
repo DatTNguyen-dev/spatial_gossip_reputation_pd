@@ -21,9 +21,8 @@ MODE_NO_INFO = "no_info"
 MODE_GOSSIP = "gossip"
 MODE_REPUTATION = "reputation"
 
-MODELS = ["mistral:7b-instruct", "llama3.1:8b", "qwen3:8b"]
+MODELS = ["mistral:7b-instruct", "llama3.1:8b"]
 
 SEED_PLACEMENT = 42
 SEED_PAIRING = 100
 SEED_GOSSIP = 200
-SEED_LLM = 300
