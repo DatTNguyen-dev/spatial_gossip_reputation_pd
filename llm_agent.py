@@ -22,15 +22,15 @@ from data_structures import (
 )
 
 # ==============================================================================
-#  THERMAL PROTECTION SETTINGS
+#  INFERENCE SETTINGS
 # ==============================================================================
 
 # Number of model layers offloaded to GPU.
-# 0  = CPU only (no GPU heat, safe for all machines)
-# 99 = full GPU (fastest; requires sufficient VRAM)
+# 0  = CPU-only inference
+# 99 = full GPU offload (requires sufficient VRAM)
 NUM_GPU_LAYERS: int = 99
 
-# Optional delay (seconds) between successive Ollama calls to reduce heat.
+# Optional delay (seconds) inserted between successive Ollama calls.
 SLEEP_BETWEEN_CALLS: float = 0.0
 
 
@@ -130,10 +130,8 @@ def _build_agent_prompt(
 ) -> str:
     context    = build_context_for_agent(self_id, opponent_id, state)
     model_name = state.get("model_name", "")
-    no_think   = "/no_think\n" if "qwen3" in model_name.lower() else ""
 
     return (
-        f"{no_think}"
         f"You are Agent {self_id} in a social network experiment.\n"
         f"You are about to play ONE round of Prisoner's Dilemma "
         f"with Agent {opponent_id}.\n"
@@ -163,6 +161,11 @@ def node_build_prompt(state: SimulationState) -> SimulationState:
 
 # ==============================================================================
 #  OLLAMA SERVER MANAGEMENT
+#  These utilities ensure the Ollama server is reachable before each API call.
+#  On a local machine, _ensure_server_running() is a no-op when the server is
+#  already running. On notebook environments (e.g. Colab), the server process
+#  may be killed after a period of inactivity; these functions detect and
+#  transparently recover from that condition.
 # ==============================================================================
 
 def _find_ollama() -> str:
@@ -186,10 +189,12 @@ def _is_server_up() -> bool:
 
 
 def _ensure_server_running() -> None:
-    """Start the Ollama server if it is not already running.
+    """
+    Ensure the Ollama server is reachable, starting it if necessary.
 
-    Colab kills background processes after periods of inactivity, so this
-    guard is called before every API request to transparently recover.
+    On a local machine this is typically a no-op. On notebook runtimes
+    where background processes may be terminated after idle periods,
+    this function detects the condition and restarts the server.
     """
     if _is_server_up():
         return
@@ -297,7 +302,7 @@ def parse_action(raw_text: str) -> Action:
 
 
 # ==============================================================================
-#  LANGGRAPH NODE
+#  SIMULATION NODE
 # ==============================================================================
 
 def node_call_llm(state: SimulationState) -> SimulationState:
