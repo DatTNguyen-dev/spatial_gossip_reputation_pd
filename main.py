@@ -44,16 +44,16 @@ RESULTS_DIR = Path("results")
 PLOTS_DIR   = Path("plots")
 
 # ── How many seeds per config ─────────────────────────────────────────────────
-# Start with N_SEEDS = 1 for a quick test, then increase to 5 for real results
+# Number of independent seeds per (model, mode) configuration.
 N_SEEDS = 5
 
-# ── All 9 configurations in fixed order ───────────────────────────────────────
+# ── All 6 configurations in fixed order ───────────────────────────────────────
 MODES = [MODE_NO_INFO, MODE_GOSSIP, MODE_REPUTATION]
 CONFIGS: list[tuple[str, str]] = [
     (model, mode)
     for model in MODELS
     for mode in MODES
-]   # 9 entries total
+]
 
 
 ExperimentKey = Tuple[str, str]
@@ -94,7 +94,6 @@ def _result_path(model_name: str, mode: str) -> Path:
 
 # ==============================================================================
 #  OLLAMA MODEL UNLOADER
-#  Frees VRAM after each config — key to avoiding crashes.
 # ==============================================================================
 
 def _unload_model(model_name: str) -> None:
@@ -210,7 +209,7 @@ def _print_next(current_idx: int) -> None:
     if remaining:
         print(f"  Next: python main.py {remaining[0]}")
     else:
-        print(f"  All 9 configs done!  →  python main.py plot")
+        print(f"  All {len(CONFIGS)} configs done!  →  python main.py plot")
     print()
 
 
