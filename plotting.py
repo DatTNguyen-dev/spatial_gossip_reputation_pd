@@ -16,7 +16,6 @@ ExperimentKey = Tuple[str, str]
 _MODEL_COLORS = {
     "mistral:7b-instruct": "tab:blue",
     "llama3.1:8b":         "tab:orange",
-    "qwen3:8b":            "tab:green",
 }
 
 # Line style per mode for cooperation-rate plot
