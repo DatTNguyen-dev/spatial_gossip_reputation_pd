@@ -45,6 +45,10 @@ def broadcast_gossip(
     Reception: P_receive = exp(-LAMBDA * d_C), Bernoulli sample.
     Distortion: epsilon = 1 - exp(-MU * d_C); with prob epsilon flip one
     reported action (randomly chosen participant) via Binary Symmetric Channel.
+
+    Combined, P(accurate report) = P_receive * (1 - epsilon)
+                                  = exp(-(LAMBDA + MU) * d_C)
+    This is the theoretical curve plotted against empirical accuracy in plotting.plot_gossip_accuracy_vs_distance().
     """
     if state["mode"] != MODE_GOSSIP:
         return state
@@ -122,15 +126,15 @@ def broadcast_gossip(
 
 
 def node_broadcast_gossip(state: SimulationState) -> SimulationState:
-    """LangGraph node wrapper for gossip propagation."""
+    """Propagate gossip after one micro-match (called from graph.py)."""
     last_result = state.get("last_result")
     if last_result is None:
         return state
 
     rng = np.random.default_rng(
         SEED_GOSSIP
-        + state["sim_seed"] * 100_000
-        + last_result.macro_round * 1000
-        + last_result.match_index
+        + state["sim_seed"] * 100_000     # Separates RNG streams across the 5 seedsin one config — large enough that nomacro_round/match_index combination# below can collide between seeds.
+        + last_result.macro_round * 1000  # macro_round ∈ [1,10], match_index < 435
+        + last_result.match_index         # → max combined offset < 10_435, wellunder the 100_000 stride above.
     )
     return broadcast_gossip(state, last_result, rng)

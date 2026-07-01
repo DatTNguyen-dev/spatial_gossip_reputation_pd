@@ -291,6 +291,70 @@ def plot_spatial_heatmaps(
     fig.tight_layout()
     return fig
 
+# ==============================================================================
+#  PLOT 6 — Payoff inequality (Gini coefficient)
+# ==============================================================================
+
+def plot_gini_coefficient(
+    results: Dict[ExperimentKey, dict[str, Any]],
+) -> plt.Figure:
+    """
+    Line chart: Gini coefficient of per-agent payoff per macro round.
+    One subplot per information mode, one line per model, ±std shaded.
+
+    Measures wealth stratification among agents: 0 = perfectly equal
+    payoff distribution, higher values = a subset of agents
+    accumulating disproportionately more payoff than the rest.
+    """
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharey=True)
+    mode_to_ax = {
+        MODE_NO_INFO:    axes[0],
+        MODE_GOSSIP:     axes[1],
+        MODE_REPUTATION: axes[2],
+    }
+
+    for model_name, mode, rounds, mean, std in _extract_metric(
+        results, "gini_coefficient"
+    ):
+        ax       = mode_to_ax[mode]
+        mean_arr = np.array(mean)
+        std_arr  = np.array(std)
+        color    = _model_color(model_name)
+
+        ax.plot(rounds, mean_arr, label=model_name, color=color)
+        ax.fill_between(
+            rounds,
+            mean_arr - std_arr,
+            mean_arr + std_arr,
+            alpha=0.2,
+            color=color,
+        )
+        ax.set_title(_mode_title(mode))
+        ax.set_xlabel("Macro round")
+        ax.set_xticks(range(1, len(rounds) + 1))
+
+    axes[0].set_ylabel("Gini coefficient (payoff)")
+    # Start at 0 to avoid a truncated-axis distortion; let matplotlib pick the upper bound automatically since Gini values here stay well under 1.0 (unlike cooperation_rate, which naturally spans the full [0,1] range).
+    for ax in axes:
+        ax.set_ylim(bottom=0.0)
+
+    handles, labels = [], []
+    for ax in axes:
+        for h, l in zip(*ax.get_legend_handles_labels()):
+            if l not in labels:
+                handles.append(h)
+                labels.append(l)
+    fig.legend(
+        handles, labels,
+        loc="upper right",
+        bbox_to_anchor=(1.0, 1.0),
+        bbox_transform=fig.transFigure,
+    )
+    fig.suptitle(
+        "Payoff inequality across macro rounds (mean ± std over seeds)", y=1.04
+    )
+    fig.tight_layout(rect=[0, 0, 0.88, 1])
+    return fig
 
 # ==============================================================================
 #  PLOT ALL — convenience wrapper
@@ -324,6 +388,7 @@ def plot_all(
     figures["cooperation_rate"]   = plot_cooperation_rate(results)
     figures["payoff_distribution"] = plot_payoff_distribution(results)
     figures["defector_isolation"] = plot_defector_isolation(results)
+    figures["gini_coefficient"] = plot_gini_coefficient(results)
 
     # Gossip accuracy plot — only meaningful for MODE_GOSSIP runs
     if final_memory is not None:

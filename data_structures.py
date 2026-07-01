@@ -1,4 +1,4 @@
-"""Core data structures for the LangGraph simulation."""
+"""Core data structures for the spatial gossip Prisoner's dilemma simulation."""
 
 from __future__ import annotations
 
@@ -104,6 +104,8 @@ def update_reputation_summary(
     other_action: Action,
     current_round: int,
 ) -> None:
+    # Always reassign at the end, even though `entry` may already be a reference inside the dict — this keeps the new-entry and
+    # existing-entry code paths identical and avoids a forgotten write-back if this function is later refactored.
     entry = memory.reputation_summary.get(other_id, ReputationEntry())
     if other_action == "C":
         entry.total_C += 1
@@ -116,12 +118,13 @@ def update_reputation_summary(
 def initialize(
     mode: str,
     model_name: str,
-    seed_placement: int = 42,
-    sim_seed: int = 0,
+    seed_placement: int = 42,     # Keep fixed across all seeds in one config — spatial_coop_map averaging in runner.py assumes identical agent positions per seed.
+    sim_seed: int = 0,           # Vary this per seed to randomise gossip/pairing
 ) -> SimulationState:
     rng_place = np.random.default_rng(seed_placement)
 
     all_cells = [(x, y) for x in range(GRID_W) for y in range(GRID_H)]
+    # 36 cells for 30 agents — extra headroom ensures `replace=False` below never raises (would fail if N_AGENTS == GRID_W * GRID_H).
     chosen_indices = rng_place.choice(len(all_cells), size=N_AGENTS, replace=False)
     chosen = [all_cells[i] for i in chosen_indices]
     positions = {agent_id: chosen[agent_id] for agent_id in range(N_AGENTS)}

@@ -1,5 +1,5 @@
 """
-main.py — Run ONE configuration at a time to avoid laptop crashes.
+main.py
 
 USAGE
 ─────
@@ -16,9 +16,6 @@ CONFIG TABLE
     #4  llama3.1:8b          |  no_info
     #5  llama3.1:8b          |  gossip
     #6  llama3.1:8b          |  reputation
-    #7  qwen3:8b             |  no_info
-    #8  qwen3:8b             |  gossip
-    #9  qwen3:8b             |  reputation
 
 RECOMMENDED WORKFLOW
 ────────────────────
@@ -26,8 +23,7 @@ RECOMMENDED WORKFLOW
     2. Run python main.py 1     wait until finished
     3. Run python main.py 2     wait until finished
     ...
-    9. Run python main.py 9     wait until finished
-    10. Run python main.py plot to generate all charts
+    8. Run python main.py plot to generate all charts
 """
 
 from __future__ import annotations

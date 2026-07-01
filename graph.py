@@ -1,13 +1,15 @@
 """
-LangGraph node functions + plain-Python simulation runner.
-
-Crash protection:
-  - Saves a checkpoint after every macro round (pickle)
-  - If laptop crashes at round 6, next run resumes from round 7
-  - Configurable cooling pause between rounds (default 90s)
-
-Checkpoint files are saved to checkpoints/ and deleted automatically
-after a successful full simulation.
+Sequential simulation runner for the spatial gossip PD experiment.
+ 
+Match-level node functions (selection, prompting, LLM call, recording,
+gossip propagation, reputation update) are orchestrated by a plain
+Python loop rather than a graph-execution framework, keeping per-call
+overhead bounded across the thousands of sequential LLM calls in a
+full run.
+ 
+Simulation state is checkpointed after every completed macro round
+and deleted automatically once a run finishes successfully, allowing
+an interrupted run to resume from the last completed round.
 """
 
 from __future__ import annotations
@@ -38,14 +40,14 @@ from data_structures import (
 from gossip import node_broadcast_gossip
 from llm_agent import node_build_prompt, node_call_llm
 
-# ── Thermal protection settings ───────────────────────────────────────────────
-# Increase COOLING_PAUSE if laptop still crashes.
-# 90s pause × 9 rounds × 9 configs = ~2h total idle — worth it to avoid crashes.
+# ── Execution settings ─────────────────────────────────────────────────────
+# Optional delay (seconds) inserted between macro rounds. Configurable
+# per execution environment; see README for recommended values on
+# local hardware versus cloud GPU runtimes.
 COOLING_PAUSE_SECONDS: int = 0
-
-# Where to save round-level checkpoints
+ 
+# Directory for round-level checkpoint files.
 CHECKPOINT_DIR = Path("checkpoints")
-
 
 # ==============================================================================
 #  CHECKPOINT HELPERS
@@ -67,7 +69,7 @@ def _save_checkpoint(state: SimulationState, round_num: int) -> None:
             pickle.dump(dict(state), f, protocol=pickle.HIGHEST_PROTOCOL)
         print(f"  [ckpt] Saved  → {path.name}")
     except Exception as exc:
-        # Checkpoint failure is non-fatal — just warn and continue.
+        # A failed write does not interrupt the simulation; the run continues without a checkpoint for this round.
         print(f"  [ckpt] WARNING: could not save checkpoint: {exc}")
 
 
@@ -75,9 +77,11 @@ def _load_latest_checkpoint(
     state: SimulationState,
 ) -> tuple[SimulationState | None, int]:
     """
-    Find the most recent valid checkpoint for (model, mode, seed).
-
-    Returns (loaded_state, last_completed_round) or (None, 0) if none found.
+    Locate the most recent valid checkpoint matching this state's
+    (model, mode, seed) identity.
+ 
+    Returns (loaded_state, last_completed_round), or (None, 0) if no
+    checkpoint exists for this configuration.
     """
     if not CHECKPOINT_DIR.exists():
         return None, 0
@@ -113,7 +117,10 @@ def _delete_checkpoints(state: SimulationState) -> None:
 
 
 # ==============================================================================
-#  NODE FUNCTIONS  (unchanged logic — only orchestration differs)
+#  MATCH-LEVEL OPERATIONS
+#  Each function performs one stage of a single micro-match: scheduling,
+#  prompting, querying the LLM, recording results, propagating gossip,
+#  and updating the global reputation table.
 # ==============================================================================
 
 def node_start_macro_round(state: SimulationState) -> SimulationState:
@@ -133,11 +140,13 @@ def node_start_macro_round(state: SimulationState) -> SimulationState:
 
 
 def node_select_next_pair(state: SimulationState) -> SimulationState:
+    """Set the current match to the next pair in this round's schedule."""
     state["current_pair"] = state["match_schedule"][state["match_index"]]
     return state
 
 
 def node_record_result(state: SimulationState) -> SimulationState:
+    """Write the outcome of the current match into both agents' personal logs."""
     result = state["last_result"]
     if result is None:
         return state
@@ -187,6 +196,11 @@ def _update_global_entry(
 
 
 def node_update_reputation(state: SimulationState) -> SimulationState:
+    """Update the global reputation table with the current match's outcome.
+ 
+    No-op outside MODE_REPUTATION, where reputation is instead inferred
+    from gossip or direct play history.
+    """
     if state["mode"] != MODE_REPUTATION:
         return state
     result = state["last_result"]
@@ -218,6 +232,11 @@ def _compute_defector_isolation(
     state: SimulationState,
     matches: List[MatchResult],
 ) -> float:
+    """
+    Fraction of (Defect, Cooperate) outcomes in which the exploited
+    cooperator already held a negative running-reputation impression
+    of the defector prior to the match.
+    """
     warned_and_exploited = 0
     total_dc = 0
     for m in matches:
@@ -235,6 +254,7 @@ def _compute_defector_isolation(
 
 
 def _compute_spatial_coop_map(matches: List[MatchResult]) -> dict[int, float]:
+    """Per-agent cooperation rate for this round, keyed by agent id."""
     coop   = {i: 0 for i in range(N_AGENTS)}
     played = {i: 0 for i in range(N_AGENTS)}
     for m in matches:
@@ -249,6 +269,7 @@ def _compute_spatial_coop_map(matches: List[MatchResult]) -> dict[int, float]:
 
 
 def compute_round_stats(state: SimulationState) -> RoundStats:
+    """Aggregate all per-match outcomes from the current round into RoundStats."""
     matches = state["current_round_results"]
     total   = len(matches)
     n_cc = sum(1 for m in matches if m.action_A == "C" and m.action_B == "C")
@@ -269,12 +290,14 @@ def compute_round_stats(state: SimulationState) -> RoundStats:
 
 
 def node_end_macro_round(state: SimulationState) -> SimulationState:
+    """Compute and store this round's statistics, then advance the round counter."""
     state["history"].append(compute_round_stats(state))
     state["macro_round"] += 1
     return state
 
 
 def _compute_gossip_accuracy(state: SimulationState) -> dict:
+    """Fraction of received gossip reports that were not distorted in transit."""
     correct = total = 0
     for memory in state["agent_memory"].values():
         for entry in memory.gossip_log:
@@ -288,6 +311,7 @@ def _compute_gossip_accuracy(state: SimulationState) -> dict:
 
 
 def node_finalize(state: SimulationState) -> SimulationState:
+    """Assemble the final per-run output dict consumed by runner.aggregate()."""
     state["final_output"] = {
         "history":         state["history"],
         "final_memory":    state["agent_memory"],
@@ -305,7 +329,7 @@ def node_finalize(state: SimulationState) -> SimulationState:
 # ==============================================================================
 
 def _run_one_micro_match(state: SimulationState) -> SimulationState:
-    """One micro-match: select → prompt → LLM → record → gossip → reputation."""
+    """Execute one micro-match: select pair, prompt, query LLM, record, propagate."""
     state = node_select_next_pair(state)
     state = node_build_prompt(state)
     state = node_call_llm(state)
@@ -317,7 +341,7 @@ def _run_one_micro_match(state: SimulationState) -> SimulationState:
 
 
 def _run_one_macro_round(state: SimulationState) -> SimulationState:
-    """Run all MATCHES_PER_ROUND micro-matches, printing progress every 50."""
+    """Run every match scheduled for the current macro round."""
     state = node_start_macro_round(state)
     t0    = time.time()
 
@@ -340,20 +364,20 @@ def _run_one_macro_round(state: SimulationState) -> SimulationState:
 
 def run_simulation(state: SimulationState) -> SimulationState:
     """
-    Full simulation with checkpoint + cooling pause between rounds.
-
-    On every crash:
-      → Re-run the same command (python main.py N)
-      → Automatically resumes from the last completed round
-
-    Tune COOLING_PAUSE_SECONDS at the top of this file if still crashing.
+    Run the full N_MACRO-round simulation for a single (model, mode, seed).
+ 
+    If a checkpoint exists for this configuration, execution resumes
+    from the round immediately following the last one completed;
+    otherwise the simulation starts from round 1. State is checkpointed
+    after every round and all checkpoints for this configuration are
+    removed once the run finishes successfully.
     """
     model = state.get("model_name", "?")
     mode  = state.get("mode",       "?")
     seed  = state.get("sim_seed",    0)
     print(f"  [{model}  |  {mode}  |  seed={seed}]")
 
-    # ── Try to resume from a previous crash ───────────────────────────────────
+    # ── Resume from the most recent checkpoint, if one exists ─────────────────
     loaded_state, last_done = _load_latest_checkpoint(state)
     if loaded_state is not None:
         state = loaded_state
@@ -378,19 +402,19 @@ def run_simulation(state: SimulationState) -> SimulationState:
             f"avg_payoff={stats.avg_payoff:.2f}"
         )
 
-        # ── Save checkpoint immediately after each round ───────────────────────
+        # ── Persist state immediately after each round ─────────────────────────
         _save_checkpoint(state, r)
 
-        # ── Cooling pause (skip after the last round) ──────────────────────────
+        # ── Optional inter-round pause (skipped after the final round) ─────────
         if r < N_MACRO and COOLING_PAUSE_SECONDS > 0:
             print(f"  Cooling pause {COOLING_PAUSE_SECONDS}s ...", end="\r")
             time.sleep(COOLING_PAUSE_SECONDS)
             print(f"  Cooling done.{' ' * 30}")
 
-        # ── Free memory ───────────────────────────────────────────────────────
+        # ── Release per-round allocations before starting the next round ───────
         gc.collect()
 
-    # ── Clean up checkpoints on success ───────────────────────────────────────
+    # ── Remove checkpoints now that the run has completed successfully ────────
     _delete_checkpoints(state)
     print("  Checkpoints cleaned up.")
 
