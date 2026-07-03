@@ -42,7 +42,6 @@ runner.py            Multi-seed experiment runner with seed-level result persist
 plotting.py          All matplotlib figures (cooperation rate, payoff, isolation,
                       Gini coefficient, gossip accuracy vs. distance, spatial heatmaps)
 main.py               CLI entry point — run one (model, mode) configuration at a time
-smoke_test.py         4-phase pre-flight check before running the full experiment
 run_colab.ipynb   Cell-by-cell script for running the experiment on Colab
 ```
 
@@ -64,7 +63,7 @@ ollama pull llama3.1:8b
 ### Install
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/DatTNguyen-dev/spatial_gossip_reputation_pd.git
 cd spatial-gossip-pd
 pip install -r requirements.txt
 ollama serve   # in a separate terminal
