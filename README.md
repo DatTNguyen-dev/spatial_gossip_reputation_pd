@@ -1,6 +1,6 @@
 # Spatial Gossip and Reputation Prisoner's Dilemma
 
-LLM agents play iterated Prisoner's Dilemma on a 2D grid, with reputation information spreading through space as decaying, distortable gossip. Submitted to **CSoNet 2026**.
+LLM agents play iterated Prisoner's Dilemma on a 2D grid, with reputation information spreading through space as decaying, distortable gossip.
 
 ## Overview
 
@@ -30,12 +30,6 @@ P(distort | received) = 1 - exp(-μ · d)
 
 Distortion flips one of the two reported actions (Binary Symmetric Channel). Combined, the probability of receiving an *accurate* report decays as `exp(-(λ+μ)·d)`.
 
-## Research questions
-
-- **RQ1** — Does any reputation mechanism (gossip or global) raise cooperation above the no-information baseline?
-- **RQ2** — How much does accurate global reputation outperform noisy, distance-decayed gossip?
-- **RQ3** — Does spatial structure produce visible cooperative clustering on the grid?
-
 ## Repository structure
 
 ```
@@ -49,7 +43,7 @@ plotting.py          All matplotlib figures (cooperation rate, payoff, isolation
                       Gini coefficient, gossip accuracy vs. distance, spatial heatmaps)
 main.py               CLI entry point — run one (model, mode) configuration at a time
 smoke_test.py         4-phase pre-flight check before running the full experiment
-spatial_gossip_colab.py   Cell-by-cell script for running the experiment on Colab
+run_colab.ipynb   Cell-by-cell script for running the experiment on Colab
 ```
 
 ## Setup
@@ -110,7 +104,7 @@ Both recovery mechanisms are automatic — re-running the same `python main.py N
 
 ### 3. Running on Google Colab
 
-For users without a sufficiently capable local GPU, `spatial_gossip_colab.py` contains a cell-by-cell script that installs Ollama, mounts Google Drive for persistent model/checkpoint storage, and runs the same `main.py` CLI. See inline comments for setup.
+For users without a sufficiently capable local GPU, `run_colan.ipynb` contains a cell-by-cell script that installs Ollama, mounts Google Drive for persistent model/checkpoint storage, and runs the same `main.py` CLI. See inline comments for setup.
 
 Two settings differ between local and cloud execution:
 
