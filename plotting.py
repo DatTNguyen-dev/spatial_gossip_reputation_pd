@@ -28,9 +28,9 @@ _MODE_LINESTYLE = {
 
 def _mode_title(mode: str) -> str:
     return {
-        MODE_NO_INFO:    "No Information",
-        MODE_GOSSIP:     "Gossip",
-        MODE_REPUTATION: "Reputation",
+        MODE_NO_INFO:    "Personal Memory",
+        MODE_GOSSIP:     "Spatial Gossip",
+        MODE_REPUTATION: "Reputation Board",
     }.get(mode, mode)
 
 
